@@ -100,9 +100,13 @@ export default function BubbleNote({
             {place.name}
           </span>
           <button
-            onClick={onClose}
+            onClick={() => {
+              onNoteChange(null);
+              onClose();
+            }}
             className="text-ink-600 hover:text-stamp-500 transition-colors p-0.5"
-            aria-label="关闭"
+            aria-label="删除备注"
+            title="删除备注"
           >
             <X size={14} />
           </button>

@@ -67,15 +67,34 @@ export default function HandDrawnOverlay({
     clearSvg(svg);
     if (places.length < 2) return;
     const rc = getRoughSvg(svg);
-    const points = places.map(toPoint);
-    for (let i = 0; i < points.length - 1; i++) {
-      const from = points[i];
-      const to = points[i + 1];
-      // 交替弯曲方向，模拟手绘蜿蜒
-      const bend = i % 2 === 0 ? 1 : -1;
-      drawHandLine(rc, svg, from, to, {}, bend);
+    for (let i = 0; i < places.length - 1; i++) {
+      const fromPlace = places[i];
+      const toPlace = places[i + 1];
+      const from = toPoint(fromPlace);
+      const to = toPoint(toPlace);
+      const route = toPlace.routeFromPrevious;
+      if (route && route.length >= 2) {
+        // 按道路路径点连线（每段手绘曲线，bend 交替）
+        const pts = [from, ...route.map((r) => toPoint(r)), to];
+        for (let j = 0; j < pts.length - 1; j++) {
+          const bend = j % 2 === 0 ? 1 : -1;
+          drawHandLine(rc, svg, pts[j], pts[j + 1], {}, bend);
+        }
+      } else {
+        // 无路径：降级为两点直线
+        const bend = i % 2 === 0 ? 1 : -1;
+        drawHandLine(rc, svg, from, to, {}, bend);
+      }
       // 箭头方向与位置（终点处后退一点，避免压住标记）
-      const angle = Math.atan2(to.y - from.y, to.x - from.x);
+      // 方向取路径最后一段的方向，更贴合道路
+      let angle: number;
+      if (route && route.length >= 2) {
+        const lastFrom = toPoint(route[route.length - 2]);
+        const lastTo = toPoint(route[route.length - 1]);
+        angle = Math.atan2(lastTo.y - lastFrom.y, lastTo.x - lastFrom.x);
+      } else {
+        angle = Math.atan2(to.y - from.y, to.x - from.x);
+      }
       const arrowPos = {
         x: to.x - Math.cos(angle) * 22,
         y: to.y - Math.sin(angle) * 22,
