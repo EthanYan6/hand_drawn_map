@@ -5,6 +5,7 @@ import type { LanguageCode, MapLevel, PlaceLocation, PlaceNote } from "@/types";
 import { geocodePlaces, refetchDisplayNames } from "@/utils/geocode";
 import { detectLanguage, detectMapLevel } from "@/utils/mapLevel";
 import { defaultBubbleOffset } from "@/utils/bubbleLayout";
+import { fetchRoute } from "@/utils/routing";
 
 // 用于生成地点 id
 let idCounter = 0;
@@ -101,8 +102,28 @@ export const useMapStore = create<MapState>((set, get) => ({
           // 根据序号智能选择上下位置，避免遮挡连线
           bubbleOffset: defaultBubbleOffset(idx),
           bubbleOpen: false,
+          routeFromPrevious: null,
         });
       });
+
+      // 获取相邻地点间的道路路径（OSRM），用于手绘连线按实际道路弯曲
+      // 第一个新地点：如果已有地点列表非空，连接到上一个已有地点
+      // 其余新地点：按 newPlaces 内顺序两两连接
+      const prevPlaces = get().places;
+      const allForRoute = [...prevPlaces, ...newPlaces];
+      for (let i = prevPlaces.length; i < allForRoute.length; i++) {
+        if (i === 0) continue;
+        const from = allForRoute[i - 1];
+        const to = allForRoute[i];
+        if (Number.isNaN(from.lat) || Number.isNaN(from.lon)) continue;
+        if (Number.isNaN(to.lat) || Number.isNaN(to.lon)) continue;
+        const route = await fetchRoute(
+          { lat: from.lat, lon: from.lon },
+          { lat: to.lat, lon: to.lon },
+        );
+        // route 存到 newPlaces 对应项（i - prevPlaces.length）
+        newPlaces[i - prevPlaces.length].routeFromPrevious = route;
+      }
 
       if (newPlaces.length === 0) {
         set({

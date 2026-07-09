@@ -193,7 +193,7 @@ function formatDateTime(date: Date): string {
 
 // 绘制右下角日期时间
 function drawDateTime(ctx: CanvasRenderingContext2D, w: number, h: number): void {
-  const text = `生成于 ${formatDateTime(new Date())}`;
+  const text = formatDateTime(new Date());
   ctx.fillStyle = "rgba(82, 64, 46, 0.55)";
   ctx.textAlign = "right";
   ctx.textBaseline = "bottom";

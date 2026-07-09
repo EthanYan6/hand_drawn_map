@@ -26,6 +26,8 @@ export interface PlaceLocation {
   bubbleOffset: { x: number; y: number };
   // 泡泡是否展开
   bubbleOpen: boolean;
+  // 从上一个地点到此地点的道路路径点（OSRM），null 表示用直线
+  routeFromPrevious: { lat: number; lon: number }[] | null;
 }
 
 // 地图层级枚举
