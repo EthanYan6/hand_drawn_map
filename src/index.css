@@ -1,0 +1,160 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: "Noto Serif SC", serif;
+  line-height: 1.6;
+  font-weight: 400;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* 仿古纸张背景纹理 */
+.paper-texture {
+  background-color: #f4e8d0;
+  background-image:
+    radial-gradient(circle at 20% 30%, rgba(62, 44, 28, 0.04) 0%, transparent 50%),
+    radial-gradient(circle at 80% 70%, rgba(199, 62, 29, 0.03) 0%, transparent 50%),
+    radial-gradient(circle at 50% 50%, rgba(91, 142, 125, 0.02) 0%, transparent 60%);
+  position: relative;
+}
+
+.paper-texture::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.24 0 0 0 0 0.17 0 0 0 0 0.11 0 0 0 0.08 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity: 0.6;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+}
+
+/* Leaflet 地图容器水彩质感 */
+.leaflet-container {
+  background: #f4e8d0 !important;
+  font-family: "Noto Serif SC", serif !important;
+}
+
+/* CARTO Voyager 无地名瓦片水彩滤镜：略提对比度让行政边境线更清晰 */
+.watercolor-tiles .leaflet-tile-pane {
+  filter: saturate(0.82) sepia(0.16) brightness(1.04) contrast(1.03);
+}
+
+/* Leaflet 默认控件手绘化 */
+.leaflet-control-zoom {
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.leaflet-control-zoom a {
+  background: #f4e8d0 !important;
+  color: #3e2c1c !important;
+  border: 2px solid #3e2c1c !important;
+  border-radius: 12px 8px 14px 9px !important;
+  font-family: "Caveat", cursive !important;
+  font-weight: 700 !important;
+  font-size: 18px !important;
+  width: 32px !important;
+  height: 32px !important;
+  line-height: 28px !important;
+  margin-bottom: 6px !important;
+  box-shadow: 2px 2px 0 rgba(62, 44, 28, 0.2) !important;
+  transition: transform 0.2s ease;
+}
+
+.leaflet-control-zoom a:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 rgba(62, 44, 28, 0.3) !important;
+}
+
+.leaflet-control-zoom a:first-child {
+  border-radius: 14px 9px 12px 8px !important;
+}
+
+.leaflet-control-attribution {
+  background: rgba(244, 232, 208, 0.8) !important;
+  color: #52402e !important;
+  font-family: "Caveat", cursive !important;
+  font-size: 13px !important;
+  border-radius: 8px !important;
+  padding: 2px 8px !important;
+}
+
+.leaflet-control-attribution a {
+  color: #5b8e7d !important;
+}
+
+/* 手绘边框工具类 */
+.hand-border {
+  border: 2px solid #3e2c1c;
+  border-radius: 18px 14px 20px 12px / 14px 20px 12px 18px;
+  box-shadow: 3px 3px 0 rgba(62, 44, 28, 0.15);
+}
+
+.hand-border-wobbly {
+  border: 2.5px solid #3e2c1c;
+  border-radius: 30% 70% 70% 30% / 30% 30% 70% 70%;
+}
+
+/* 手写体输入框 */
+.hand-input {
+  background: rgba(255, 252, 240, 0.7);
+  border: none;
+  border-bottom: 2px dashed #52402e;
+  font-family: "Ma Shan Zheng", "Caveat", cursive;
+  color: #3e2c1c;
+  outline: none;
+  padding: 6px 10px;
+  transition: border-color 0.2s ease;
+}
+
+.hand-input:focus {
+  border-bottom-color: #c73e1d;
+}
+
+.hand-input::placeholder {
+  color: #8b7355;
+  font-family: "Caveat", cursive;
+}
+
+/* 自定义滚动条 */
+.custom-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.custom-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scroll::-webkit-scrollbar-thumb {
+  background: rgba(62, 44, 28, 0.3);
+  border-radius: 10px;
+}
+
+.custom-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(62, 44, 28, 0.5);
+}
+
+/* 胶带贴片装饰 */
+.tape {
+  position: absolute;
+  width: 80px;
+  height: 24px;
+  background: rgba(199, 62, 29, 0.25);
+  border-left: 1px dashed rgba(199, 62, 29, 0.4);
+  border-right: 1px dashed rgba(199, 62, 29, 0.4);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
