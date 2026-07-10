@@ -592,18 +592,6 @@ async function captureBubbles(
   if (svgEl) svgEl.style.display = "none";
 
   try {
-    // 修正气泡标题文字：html2canvas 对手写字体的基线渲染偏下，
-    // 仅在捕获时给标题文字加 position:relative + top:-2px 上移
-    const titleEls = overlay.querySelectorAll<HTMLElement>(
-      '[data-role="bubble-title"]',
-    );
-    const savedTops: { el: HTMLElement; pos: string; top: string }[] = [];
-    titleEls.forEach((el) => {
-      savedTops.push({ el, pos: el.style.position, top: el.style.top });
-      el.style.position = "relative";
-      el.style.top = "-2px";
-    });
-
     const canvas = await html2canvas(overlay, {
       useCORS: true,
       allowTaint: false,
@@ -612,13 +600,6 @@ async function captureBubbles(
       logging: false,
       imageTimeout: 0,
     });
-
-    // 恢复标题文字
-    savedTops.forEach(({ el, pos, top }) => {
-      el.style.position = pos;
-      el.style.top = top;
-    });
-
     return canvas;
   } finally {
     // 恢复所有元素
