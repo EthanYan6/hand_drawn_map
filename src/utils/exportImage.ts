@@ -707,10 +707,24 @@ export async function exportImage(
         padding: [100, 100],
         maxZoom: 16,
       });
-      // 等待新瓦片加载完成
-      await waitForTilesLoaded(target, 4000);
+      // fitBounds(animate:false) 同步更新地图状态，但 DOM 瓦片更新是异步的
+      // 必须先等 moveend 事件，此时 Leaflet 才清除旧瓦片、开始加载新瓦片
+      // 否则 waitForTilesLoaded 会因旧瓦片仍 complete 而立即返回，捕获到旧视野
+      await new Promise<void>((resolve) => {
+        let resolved = false;
+        const done = () => {
+          if (!resolved) {
+            resolved = true;
+            resolve();
+          }
+        };
+        map.once("moveend", done);
+        setTimeout(done, 500);
+      });
+      // 等待新瓦片加载完成（moveend 后新瓦片才开始加载）
+      await waitForTilesLoaded(target, 6000);
       // 等待 overlay 重绘（React rAF + 渲染）
-      await new Promise((r) => setTimeout(r, 200));
+      await new Promise((r) => setTimeout(r, 300));
     } catch {
       // fitBounds 失败则使用当前视野
     }
