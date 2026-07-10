@@ -96,7 +96,10 @@ export default function BubbleNote({
           onMouseDown={onDragStart}
         >
           <GripVertical size={13} className="text-ink-600/70 shrink-0" />
-          <span className="font-hand-cn text-base text-ink-800 truncate flex-1 -translate-y-[0.5em]">
+          <span
+            data-role="bubble-title-text"
+            className="font-hand-cn text-base text-ink-800 truncate flex-1"
+          >
             <span className="text-stamp-500 mr-1">#{index}</span>
             {place.name}
           </span>

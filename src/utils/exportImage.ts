@@ -591,18 +591,18 @@ async function captureBubbles(
   const savedSvgDisplay = svgEl?.style.display || "";
   if (svgEl) svgEl.style.display = "none";
 
-  // 修正气泡标题栏导出偏下：html2canvas 对 flex items-center 的垂直居中有偏下 bug
-  // 临时改为 flex-start + line-height 精确控制，仅影响导出，不影响页面显示
-  const titleBars = overlay.querySelectorAll<HTMLElement>(
-    '[data-role="bubble-title"]',
+  // 修正气泡标题文字导出偏下：html2canvas 渲染手写字体时垂直位置偏下
+  // 导出前临时上移半个字高，不影响页面显示
+  const titleTextElements = overlay.querySelectorAll<HTMLElement>(
+    '[data-role="bubble-title-text"]',
   );
-  const savedTitleStyles: { el: HTMLElement; cssText: string }[] = [];
-  titleBars.forEach((el) => {
-    savedTitleStyles.push({ el, cssText: el.style.cssText });
-    el.style.alignItems = "flex-start";
-    el.style.lineHeight = "1.1";
-    el.style.paddingTop = "5px";
-    el.style.paddingBottom = "5px";
+  const savedTitleTextStyles: { el: HTMLElement; cssText: string }[] = [];
+  titleTextElements.forEach((titleTextElement) => {
+    savedTitleTextStyles.push({
+      el: titleTextElement,
+      cssText: titleTextElement.style.cssText,
+    });
+    titleTextElement.style.transform = "translateY(-0.5em)";
   });
 
   try {
@@ -621,7 +621,7 @@ async function captureBubbles(
       el.style.display = display;
     });
     if (svgEl) svgEl.style.display = savedSvgDisplay;
-    savedTitleStyles.forEach(({ el, cssText }) => {
+    savedTitleTextStyles.forEach(({ el, cssText }) => {
       el.style.cssText = cssText;
     });
   }
