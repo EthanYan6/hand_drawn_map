@@ -754,7 +754,7 @@ async function fitMapViewForExport(
   for (let iteration = 0; iteration < maxIterations; iteration++) {
     map.fitBounds(bounds, {
       animate: false,
-      padding: [120, 120],
+      padding: [50, 50],
       maxZoom: 16,
     });
 
@@ -890,7 +890,7 @@ export async function exportImage(
         map.invalidateSize();
         map.fitBounds(bounds, {
           animate: false,
-          padding: [120, 120],
+          padding: [50, 50],
           maxZoom: 16,
         });
         await new Promise<void>((resolve) =>
