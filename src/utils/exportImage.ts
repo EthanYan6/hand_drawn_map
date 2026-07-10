@@ -571,11 +571,25 @@ async function drawOverlayElements(
   ctx.restore();
 }
 
-// 捕获泡泡层（仅泡泡，隐藏其他 overlay 元素）
+// 捕获泡泡层：逐个用 html2canvas 捕获泡泡 DOM 元素，
+// 再按 getBoundingClientRect 精确贴到 canvas 上
+// 避免 html2canvas 对整个 overlay 渲染时的位置偏移
 async function captureBubbles(
   overlay: HTMLElement,
   scale: number,
 ): Promise<HTMLCanvasElement> {
+  const containerRect = overlay.getBoundingClientRect();
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(containerRect.width * scale);
+  canvas.height = Math.round(containerRect.height * scale);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return canvas;
+
+  // 逐个捕获泡泡
+  const bubbleEls = Array.from(
+    overlay.querySelectorAll<HTMLElement>('[data-role="bubble"]'),
+  );
+
   // 隐藏所有非泡泡元素
   const hiddenEls = overlay.querySelectorAll<HTMLElement>(
     '[data-role="pin"], [data-role="label"], [data-role="distance"]',
@@ -585,24 +599,33 @@ async function captureBubbles(
     savedDisplays.push({ el, display: el.style.display });
     el.style.display = "none";
   });
-
-  // 同时隐藏 SVG 路线层（调用方已隐藏，但确保）
   const svgEl = overlay.querySelector("svg");
   const savedSvgDisplay = svgEl?.style.display || "";
   if (svgEl) svgEl.style.display = "none";
 
   try {
-    const canvas = await html2canvas(overlay, {
-      useCORS: true,
-      allowTaint: false,
-      backgroundColor: null, // 透明背景
-      scale,
-      logging: false,
-      imageTimeout: 0,
-    });
+    for (const bubbleEl of bubbleEls) {
+      const rect = bubbleEl.getBoundingClientRect();
+      const x = rect.left - containerRect.left;
+      const y = rect.top - containerRect.top;
+
+      const bubbleCanvas = await html2canvas(bubbleEl, {
+        useCORS: true,
+        allowTaint: false,
+        backgroundColor: null,
+        scale,
+        logging: false,
+        imageTimeout: 0,
+      });
+
+      ctx.drawImage(
+        bubbleCanvas,
+        Math.round(x * scale),
+        Math.round(y * scale),
+      );
+    }
     return canvas;
   } finally {
-    // 恢复所有元素
     savedDisplays.forEach(({ el, display }) => {
       el.style.display = display;
     });
