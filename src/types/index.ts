@@ -28,6 +28,8 @@ export interface PlaceLocation {
   bubbleOpen: boolean;
   // 从上一个地点到此地点的道路路径点（OSRM），null 表示用直线
   routeFromPrevious: { lat: number; lon: number }[] | null;
+  // 从上一个地点到此地点的距离（公里），null 表示未设置
+  distanceFromPrevious: number | null;
 }
 
 // 地图层级枚举

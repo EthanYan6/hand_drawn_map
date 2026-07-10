@@ -49,6 +49,8 @@ interface MapState {
   toggleBubble: (id: string) => void;
   // 设置泡泡偏移（拖拽）
   setBubbleOffset: (id: string, offset: { x: number; y: number }) => void;
+  // 设置路段距离（公里）
+  setDistance: (id: string, distance: number | null) => void;
   // 同时展开所有泡泡（用于导出）
   openAllBubbles: () => void;
   // 清除错误
@@ -103,28 +105,12 @@ export const useMapStore = create<MapState>((set, get) => ({
           bubbleOffset: defaultBubbleOffset(idx),
           bubbleOpen: false,
           routeFromPrevious: null,
+          distanceFromPrevious: null,
         });
       });
 
-      // 获取相邻地点间的道路路径（OSRM），用于手绘连线按实际道路弯曲
-      // 第一个新地点：如果已有地点列表非空，连接到上一个已有地点
-      // 其余新地点：按 newPlaces 内顺序两两连接
-      const prevPlaces = get().places;
-      const allForRoute = [...prevPlaces, ...newPlaces];
-      for (let i = prevPlaces.length; i < allForRoute.length; i++) {
-        if (i === 0) continue;
-        const from = allForRoute[i - 1];
-        const to = allForRoute[i];
-        if (Number.isNaN(from.lat) || Number.isNaN(from.lon)) continue;
-        if (Number.isNaN(to.lat) || Number.isNaN(to.lon)) continue;
-        const route = await fetchRoute(
-          { lat: from.lat, lon: from.lon },
-          { lat: to.lat, lon: to.lon },
-        );
-        // route 存到 newPlaces 对应项（i - prevPlaces.length）
-        newPlaces[i - prevPlaces.length].routeFromPrevious = route;
-      }
-
+      // 路由获取改为后台异步：先把地点加入 state，再逐个获取路由
+      // 避免等待 OSRM 请求时阻塞 UI（尤其是跨国场景请求慢/超时）
       if (newPlaces.length === 0) {
         set({
           loading: false,
@@ -152,6 +138,33 @@ export const useMapStore = create<MapState>((set, get) => ({
       if (langChanged) {
         get().setDisplayLanguage(detectedLang);
       }
+
+      // 后台异步获取道路路径（不阻塞 UI）
+      // 远距离（>500km）自动跳过，逐个完成后更新 state
+      const routeBaseIndex = existingCount;
+      void (async () => {
+        for (let i = 0; i < newPlaces.length; i++) {
+          const globalIdx = routeBaseIndex + i;
+          if (globalIdx === 0) continue;
+          const currentPlaces = get().places;
+          const from = currentPlaces[globalIdx - 1];
+          const to = currentPlaces[globalIdx];
+          if (!from || !to) continue;
+          if (Number.isNaN(from.lat) || Number.isNaN(from.lon)) continue;
+          if (Number.isNaN(to.lat) || Number.isNaN(to.lon)) continue;
+          const route = await fetchRoute(
+            { lat: from.lat, lon: from.lon },
+            { lat: to.lat, lon: to.lon },
+          );
+          if (route) {
+            // 逐个更新对应地点的 routeFromPrevious
+            set({
+              places: get().places.map((p) =>
+                p.id === to.id ? { ...p, routeFromPrevious: route } : p),
+            });
+          }
+        }
+      })();
     } catch (e) {
       set({
         loading: false,
@@ -212,6 +225,13 @@ export const useMapStore = create<MapState>((set, get) => ({
     set({
       places: get().places.map((p) =>
         p.id === id ? { ...p, bubbleOffset: offset } : p),
+    });
+  },
+
+  setDistance: (id, distance) => {
+    set({
+      places: get().places.map((p) =>
+        p.id === id ? { ...p, distanceFromPrevious: distance } : p),
     });
   },
 
