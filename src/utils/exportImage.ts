@@ -609,16 +609,17 @@ async function captureBubbles(
       const x = rect.left - containerRect.left;
       const y = rect.top - containerRect.top;
 
-      // 修正标题栏：html2canvas 对 flex items-center 的垂直居中渲染偏下，
-      // 临时给标题栏加 margin-top 负值使其上移
-      const headerEls = bubbleEl.querySelectorAll<HTMLElement>(
-        ".border-b-2",
+      // 修正气泡标题栏：html2canvas 对 flex items-center 垂直居中渲染偏下，
+      // 临时改为 flex-start + 固定行高，使标题文字位置与浏览器一致
+      const headerEl = bubbleEl.querySelector<HTMLElement>(
+        '[data-role="bubble-header"]',
       );
-      const savedMargins: { el: HTMLElement; mt: string }[] = [];
-      headerEls.forEach((el) => {
-        savedMargins.push({ el, mt: el.style.marginTop });
-        el.style.marginTop = "-3px";
-      });
+      const savedAlign = headerEl?.style.alignItems || "";
+      const savedPadding = headerEl?.style.paddingTop || "";
+      if (headerEl) {
+        headerEl.style.alignItems = "flex-start";
+        headerEl.style.paddingTop = "5px";
+      }
 
       const bubbleCanvas = await html2canvas(bubbleEl, {
         useCORS: true,
@@ -629,10 +630,11 @@ async function captureBubbles(
         imageTimeout: 0,
       });
 
-      // 恢复标题栏
-      savedMargins.forEach(({ el, mt }) => {
-        el.style.marginTop = mt;
-      });
+      // 恢复
+      if (headerEl) {
+        headerEl.style.alignItems = savedAlign;
+        headerEl.style.paddingTop = savedPadding;
+      }
 
       ctx.drawImage(
         bubbleCanvas,
