@@ -592,7 +592,19 @@ async function captureBubbles(
   if (svgEl) svgEl.style.display = "none";
 
   // 修正气泡标题文字导出偏下：html2canvas 渲染手写字体时垂直位置偏下
-  // 导出前临时上移半个字高，不影响页面显示
+  // 导出前临时上移半个字高，并解除 truncate 的 overflow 裁切，避免下半截被遮挡
+  const titleBars = overlay.querySelectorAll<HTMLElement>(
+    '[data-role="bubble-title"]',
+  );
+  const savedTitleBarStyles: { el: HTMLElement; cssText: string }[] = [];
+  titleBars.forEach((titleBar) => {
+    savedTitleBarStyles.push({ el: titleBar, cssText: titleBar.style.cssText });
+    titleBar.style.overflow = "visible";
+    titleBar.style.alignItems = "flex-start";
+    titleBar.style.paddingTop = "2px";
+    titleBar.style.paddingBottom = "10px";
+  });
+
   const titleTextElements = overlay.querySelectorAll<HTMLElement>(
     '[data-role="bubble-title-text"]',
   );
@@ -602,6 +614,8 @@ async function captureBubbles(
       el: titleTextElement,
       cssText: titleTextElement.style.cssText,
     });
+    titleTextElement.style.overflow = "visible";
+    titleTextElement.style.textOverflow = "clip";
     titleTextElement.style.transform = "translateY(-0.5em)";
   });
 
@@ -621,6 +635,9 @@ async function captureBubbles(
       el.style.display = display;
     });
     if (svgEl) svgEl.style.display = savedSvgDisplay;
+    savedTitleBarStyles.forEach(({ el, cssText }) => {
+      el.style.cssText = cssText;
+    });
     savedTitleTextStyles.forEach(({ el, cssText }) => {
       el.style.cssText = cssText;
     });
@@ -635,9 +652,9 @@ function calculateExportBounds(places: PlaceLocation[]): L.LatLngBounds {
       points.push([place.lat, place.lon]);
     }
     if (place.routeFromPrevious) {
-      for (const r of place.routeFromPrevious) {
-        if (!Number.isNaN(r.lat) && !Number.isNaN(r.lon)) {
-          points.push([r.lat, r.lon]);
+      for (const routePoint of place.routeFromPrevious) {
+        if (!Number.isNaN(routePoint.lat) && !Number.isNaN(routePoint.lon)) {
+          points.push([routePoint.lat, routePoint.lon]);
         }
       }
     }
@@ -646,6 +663,102 @@ function calculateExportBounds(places: PlaceLocation[]): L.LatLngBounds {
     throw new Error("无可用的地点坐标");
   }
   return L.latLngBounds(points);
+}
+
+// 根据页面上已渲染的备注气泡 DOM，扩展导出边界（含偏移与箭头余量）
+function extendBoundsWithBubbleElements(
+  baseBounds: L.LatLngBounds,
+  map: L.Map,
+  overlayEl: HTMLElement,
+): L.LatLngBounds {
+  const southWest = baseBounds.getSouthWest();
+  const northEast = baseBounds.getNorthEast();
+  const extendedBounds = L.latLngBounds(southWest, northEast);
+
+  const overlayRect = overlayEl.getBoundingClientRect();
+  const bubbleElements = overlayEl.querySelectorAll<HTMLElement>(
+    '[data-role="bubble"]',
+  );
+  const arrowMargin = 24;
+
+  bubbleElements.forEach((bubbleElement) => {
+    const bubbleRect = bubbleElement.getBoundingClientRect();
+    const left = bubbleRect.left - overlayRect.left - arrowMargin;
+    const top = bubbleRect.top - overlayRect.top - arrowMargin;
+    const right = bubbleRect.right - overlayRect.left + arrowMargin;
+    const bottom = bubbleRect.bottom - overlayRect.top + arrowMargin;
+
+    const topLeftPoint = L.point(left, top);
+    const bottomRightPoint = L.point(right, bottom);
+    const topLeftLatLng = map.containerPointToLatLng(topLeftPoint);
+    const bottomRightLatLng = map.containerPointToLatLng(bottomRightPoint);
+
+    extendedBounds.extend(topLeftLatLng);
+    extendedBounds.extend(bottomRightLatLng);
+  });
+
+  return extendedBounds;
+}
+
+// 判断两次边界是否基本一致，避免 fitBounds 反复震荡
+function isBoundsNearlyEqual(
+  boundsA: L.LatLngBounds,
+  boundsB: L.LatLngBounds,
+): boolean {
+  const southWestA = boundsA.getSouthWest();
+  const northEastA = boundsA.getNorthEast();
+  const southWestB = boundsB.getSouthWest();
+  const northEastB = boundsB.getNorthEast();
+  const latThreshold = 1e-6;
+  const lngThreshold = 1e-6;
+
+  const latSame =
+    Math.abs(southWestA.lat - southWestB.lat) < latThreshold &&
+    Math.abs(northEastA.lat - northEastB.lat) < latThreshold;
+  const lngSame =
+    Math.abs(southWestA.lng - southWestB.lng) < lngThreshold &&
+    Math.abs(northEastA.lng - northEastB.lng) < lngThreshold;
+
+  return latSame && lngSame;
+}
+
+// 导出前自动缩放：先按地点/路线 fit，再纳入备注气泡位置后二次 fit
+async function fitMapViewForExport(
+  map: L.Map,
+  places: PlaceLocation[],
+  overlayEl: HTMLElement,
+  target: HTMLElement,
+): Promise<void> {
+  let bounds = calculateExportBounds(places);
+  map.invalidateSize();
+
+  const maxIterations = 2;
+  for (let iteration = 0; iteration < maxIterations; iteration++) {
+    map.fitBounds(bounds, {
+      animate: false,
+      padding: [120, 120],
+      maxZoom: 16,
+    });
+
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => setTimeout(() => resolve(), 200)),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    const extendedBounds = extendBoundsWithBubbleElements(
+      bounds,
+      map,
+      overlayEl,
+    );
+    const boundsUnchanged = isBoundsNearlyEqual(bounds, extendedBounds);
+    if (boundsUnchanged) {
+      break;
+    }
+    bounds = extendedBounds;
+  }
+
+  await waitForTilesLoaded(target, 8000);
+  await new Promise((resolve) => setTimeout(resolve, 300));
 }
 
 // 等待地图瓦片加载完成（DOM 轮询方式）
@@ -714,34 +827,43 @@ export async function exportImage(
   let svgCanvas: HTMLCanvasElement | null = null;
   let overlayCanvas!: HTMLCanvasElement;
   let bubbleCanvas: HTMLCanvasElement | null = null;
+  const savedOverlayOverflow = overlayEl?.style.overflow ?? "";
 
   try {
-    // 自动缩放：计算所有地点和路线点的边界，fitBounds 到视野
+    // 自动缩放：纳入地点、路线与备注气泡位置
     try {
-      const bounds = calculateExportBounds(latestPlaces);
-      // 强制 Leaflet 重新计算容器尺寸，避免因容器尺寸异常导致 fitBounds 不生效
-      map.invalidateSize();
-      map.fitBounds(bounds, {
-        animate: false,
-        padding: [120, 120],
-        maxZoom: 16,
-      });
-      // fitBounds(animate:false) 同步更新地图状态，但瓦片 DOM 更新需要时间
-      // 若立即调用 waitForTilesLoaded，旧瓦片仍为 complete 状态会导致立即返回，
-      // 捕获到的是旧视野（当前屏幕）。必须等 Leaflet 清除旧瓦片、请求新瓦片后再等待加载
-      await new Promise<void>((resolve) =>
-        requestAnimationFrame(() => setTimeout(() => resolve(), 200)),
-      );
-      // 等待新瓦片加载完成
-      await waitForTilesLoaded(target, 8000);
-      // 等待 overlay 重绘（React rAF + 渲染）
-      await new Promise((r) => setTimeout(r, 300));
-    } catch (e) {
-      console.error("[export] 自动缩放失败，使用当前视野:", e);
+      if (overlayEl) {
+        await fitMapViewForExport(
+          map,
+          latestPlaces,
+          overlayEl as HTMLElement,
+          target,
+        );
+      } else {
+        const bounds = calculateExportBounds(latestPlaces);
+        map.invalidateSize();
+        map.fitBounds(bounds, {
+          animate: false,
+          padding: [120, 120],
+          maxZoom: 16,
+        });
+        await new Promise<void>((resolve) =>
+          requestAnimationFrame(() => setTimeout(() => resolve(), 200)),
+        );
+        await waitForTilesLoaded(target, 8000);
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      }
+    } catch (exportFitError) {
+      console.error("[export] 自动缩放失败，使用当前视野:", exportFitError);
     }
 
     // 4. 等待 DOM 渲染稳定
-    await new Promise((r) => setTimeout(r, 300));
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    // 导出捕获期间解除 overlay 裁切，避免气泡边缘被截断
+    if (overlayEl) {
+      overlayEl.style.overflow = "visible";
+    }
 
     // 5. 捕获瓦片层（手动绘制，绕过 html2canvas 对 Leaflet transform 的 bug）
     tileCanvas = await captureTileLayer(target, CAPTURE_SCALE);
@@ -775,6 +897,9 @@ export async function exportImage(
       );
     }
   } finally {
+    if (overlayEl) {
+      overlayEl.style.overflow = savedOverlayOverflow;
+    }
     // 恢复原始地图视野
     map.setView(savedView.center, savedView.zoom, { animate: false });
   }
