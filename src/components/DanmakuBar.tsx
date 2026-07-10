@@ -41,7 +41,7 @@ function StatNumber({ value }: { value: string | null }) {
     return <LoadingSpinner />;
   }
   return (
-    <span className="font-bold text-watercolor-400 mx-1">{value}</span>
+    <span className="font-bold text-white mx-1">{value}</span>
   );
 }
 
