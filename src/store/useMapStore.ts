@@ -5,7 +5,7 @@ import type { LanguageCode, MapLevel, PlaceLocation, PlaceNote } from "@/types";
 import { geocodePlaces, refetchDisplayNames } from "@/utils/geocode";
 import { detectLanguage, detectMapLevel } from "@/utils/mapLevel";
 import { defaultBubbleOffset } from "@/utils/bubbleLayout";
-import { fetchRoute } from "@/utils/routing";
+import { clearRouteCache, fetchRoute } from "@/utils/routing";
 
 // 用于生成地点 id
 let idCounter = 0;
@@ -57,6 +57,8 @@ interface MapState {
   clearError: () => void;
   // 切换显示语言（重新查询所有地点的 displayName）
   setDisplayLanguage: (language: LanguageCode) => Promise<void>;
+  // 刷新所有连线（移动地点顺序后使用）
+  refreshRoutes: () => Promise<void>;
 }
 
 export const useMapStore = create<MapState>((set, get) => ({
@@ -278,6 +280,53 @@ export const useMapStore = create<MapState>((set, get) => ({
         loading: false,
         loadingMessage: "",
         error: e instanceof Error ? e.message : "语言切换失败",
+      });
+    }
+  },
+
+  refreshRoutes: async () => {
+    const places = get().places;
+    if (places.length < 2) return;
+
+    // 清空路由缓存
+    clearRouteCache();
+
+    set({ loading: true, loadingMessage: "正在刷新连线…" });
+
+    try {
+      // 重新获取所有相邻地点之间的路由
+      const routeMap = new Map<string, { lat: number; lon: number }[]>();
+      for (let i = 1; i < places.length; i++) {
+        const from = places[i - 1];
+        const to = places[i];
+        if (Number.isNaN(from.lat) || Number.isNaN(from.lon)) continue;
+        if (Number.isNaN(to.lat) || Number.isNaN(to.lon)) continue;
+        const route = await fetchRoute(
+          { lat: from.lat, lon: from.lon },
+          { lat: to.lat, lon: to.lon },
+        );
+        routeMap.set(to.id, route);
+      }
+
+      // 更新所有路由
+      if (routeMap.size > 0) {
+        set({
+          places: get().places.map((p) =>
+            routeMap.has(p.id)
+              ? { ...p, routeFromPrevious: routeMap.get(p.id)! }
+              : p,
+          ),
+          loading: false,
+          loadingMessage: "",
+        });
+      } else {
+        set({ loading: false, loadingMessage: "" });
+      }
+    } catch (e) {
+      set({
+        loading: false,
+        loadingMessage: "",
+        error: e instanceof Error ? e.message : "刷新连线失败",
       });
     }
   },

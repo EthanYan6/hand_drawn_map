@@ -1,6 +1,6 @@
 // 已添加地点列表：手账风编号、上下移动、删除
 
-import { ChevronUp, ChevronDown, Trash2, MapPin } from "lucide-react";
+import { ChevronUp, ChevronDown, Trash2, MapPin, RefreshCw } from "lucide-react";
 import { useMapStore } from "@/store/useMapStore";
 import { MAP_LEVEL_LABEL } from "@/types";
 import { cn } from "@/lib/utils";
@@ -12,6 +12,8 @@ export default function PlaceList() {
   const toggleBubble = useMapStore((s) => s.toggleBubble);
   const mapLevel = useMapStore((s) => s.mapLevel);
   const clearPlaces = useMapStore((s) => s.clearPlaces);
+  const refreshRoutes = useMapStore((s) => s.refreshRoutes);
+  const loading = useMapStore((s) => s.loading);
 
   if (places.length === 0) {
     return (
@@ -45,12 +47,23 @@ export default function PlaceList() {
         <span className="font-hand-cn text-sm text-ink-700">
           {places.length} 站 · {MAP_LEVEL_LABEL[mapLevel]}
         </span>
-        <button
-          onClick={clearPlaces}
-          className="font-hand-en text-sm text-ink-500 hover:text-stamp-500 transition-colors"
-        >
-          清空
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={refreshRoutes}
+            disabled={loading || places.length < 2}
+            className="flex items-center gap-1 font-hand-cn text-sm text-ink-500 hover:text-stamp-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            title="刷新连线"
+          >
+            <RefreshCw size={14} className={cn(loading && "animate-spin")} />
+            刷新连线
+          </button>
+          <button
+            onClick={clearPlaces}
+            className="font-hand-en text-sm text-ink-500 hover:text-stamp-500 transition-colors"
+          >
+            清空
+          </button>
+        </div>
       </div>
 
       {/* 列表 */}
