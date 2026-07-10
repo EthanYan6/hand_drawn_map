@@ -11,8 +11,8 @@ import type { PlaceLocation } from "@/types";
 
 const EXPORT_W = 1920;
 const EXPORT_H = 1280;
-const TITLE_RATIO = 0.11; // 标题区占比（收紧，减少标题下方空白）
-const TITLE_MAP_GAP = 6; // 标题区与地图之间的间距
+const TITLE_RATIO = 0.09; // 标题区占比（收紧，减少空白）
+const TITLE_MAP_GAP = 0; // 标题区与地图之间无间距
 const CAPTURE_SCALE = 2; // 瓦片与 overlay 都用 2 倍像素密度
 
 // 等待字体加载完成
@@ -803,7 +803,7 @@ async function waitForTilesLoaded(
   }
 }
 
-// 计算地图在导出图中的绘制区域：顶部紧贴标题区下方
+// 计算地图在导出图中的绘制区域：顶部紧贴标题区下方，底部贴齐底边
 function calculateMapDrawRect(
   mapCanvasWidth: number,
   mapCanvasHeight: number,
@@ -825,7 +825,8 @@ function calculateMapDrawRect(
   }
 
   const drawX = (availableWidth - drawW) / 2;
-  const drawY = mapTop; // 地图顶部紧贴标题下方，不再贴齐底部
+  // 地图顶部紧贴标题下方（虚线），底部尽量贴齐底边
+  const drawY = mapTop;
 
   return { drawX, drawY, drawW, drawH };
 }
