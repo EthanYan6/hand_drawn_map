@@ -609,6 +609,17 @@ async function captureBubbles(
       const x = rect.left - containerRect.left;
       const y = rect.top - containerRect.top;
 
+      // 修正标题栏：html2canvas 对 flex items-center 的垂直居中渲染偏下，
+      // 临时给标题栏加 margin-top 负值使其上移
+      const headerEls = bubbleEl.querySelectorAll<HTMLElement>(
+        ".border-b-2",
+      );
+      const savedMargins: { el: HTMLElement; mt: string }[] = [];
+      headerEls.forEach((el) => {
+        savedMargins.push({ el, mt: el.style.marginTop });
+        el.style.marginTop = "-3px";
+      });
+
       const bubbleCanvas = await html2canvas(bubbleEl, {
         useCORS: true,
         allowTaint: false,
@@ -618,11 +629,15 @@ async function captureBubbles(
         imageTimeout: 0,
       });
 
+      // 恢复标题栏
+      savedMargins.forEach(({ el, mt }) => {
+        el.style.marginTop = mt;
+      });
+
       ctx.drawImage(
         bubbleCanvas,
         Math.round(x * scale),
-        // html2canvas 渲染泡泡时整体偏下，往上修正 10px
-        Math.round((y - 10) * scale),
+        Math.round(y * scale),
       );
     }
     return canvas;
