@@ -1,7 +1,7 @@
 // 导出图片弹窗：输入标题、手写签名（输入名字生成或自己手写），触发导出
 
 import { useEffect, useRef, useState } from "react";
-import { Download, X, Loader2, PenTool, Type, Eraser } from "lucide-react";
+import { Download, X, Loader2, PenTool, Type, Eraser, CalendarDays } from "lucide-react";
 import { useMapStore } from "@/store/useMapStore";
 import { exportImage } from "@/utils/exportImage";
 import { cn } from "@/lib/utils";
@@ -16,6 +16,8 @@ export default function ExportModal() {
   const [title, setTitle] = useState("");
   const [sigMode, setSigMode] = useState<SignatureMode>("input");
   const [signName, setSignName] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -109,10 +111,17 @@ export default function ExportModal() {
       } else if (sigMode === "draw" && hasDrawn) {
         signature = canvasRef.current?.toDataURL("image/png") ?? null;
       }
-      await exportImage(title, signature);
+      await exportImage(
+        title,
+        signature,
+        startDate || undefined,
+        endDate || undefined,
+      );
       close();
       setTitle("");
       setSignName("");
+      setStartDate("");
+      setEndDate("");
       setHasDrawn(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "导出失败");
@@ -173,6 +182,31 @@ export default function ExportModal() {
           <span className="font-hand-en text-base text-ink-600/70">
             1920 × 1280 PNG
           </span>
+        </div>
+
+        {/* 旅行日期区 */}
+        <div className="mt-4 pt-4 border-t border-dashed border-ink-700/40">
+          <label className="flex items-center gap-1.5 mb-2">
+            <CalendarDays size={15} className="text-watercolor-600" />
+            <span className="font-hand-cn text-base text-ink-700">旅行日期</span>
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              disabled={exporting}
+              className="hand-input flex-1 text-base py-1.5"
+            />
+            <span className="font-hand-en text-base text-ink-600">→</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              disabled={exporting}
+              className="hand-input flex-1 text-base py-1.5"
+            />
+          </div>
         </div>
 
         {/* 手写签名区 */}

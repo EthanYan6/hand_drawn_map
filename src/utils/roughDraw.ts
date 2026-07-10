@@ -99,6 +99,24 @@ export function drawHandArrow(
   return node;
 }
 
+// 用单条 rough.js 路径绘制多点折线（比逐段 drawHandLine 性能更好）
+// 一次 rc.path() 调用替代 N 次调用，大幅减少 SVG 元素数量
+export function drawHandPath(
+  rc: RoughSVG,
+  svg: SVGSVGElement,
+  points: { x: number; y: number }[],
+  options?: Partial<RoughOptions>,
+): SVGGElement | null {
+  if (points.length < 2) return null;
+  const d = points
+    .map((p, i) => (i === 0 ? `M ${p.x} ${p.y}` : `L ${p.x} ${p.y}`))
+    .join(" ");
+  const opts = { ...DEFAULT_ROUGH_OPTIONS, ...options };
+  const node = rc.path(d, opts) as SVGGElement;
+  svg.appendChild(node);
+  return node;
+}
+
 // 清空 SVG 内容
 export function clearSvg(svg: SVGSVGElement): void {
   while (svg.firstChild) {

@@ -2,13 +2,14 @@
 // 内含 SVG 路线（rough.js）、地点标记、地名标签、泡泡会话框
 // 监听 redrawTick 变化时重新计算所有元素像素位置
 
-import { useEffect, useRef, type MouseEvent } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import L from "leaflet";
 import { useMapStore } from "@/store/useMapStore";
 import {
   getRoughSvg,
   drawHandLine,
   drawHandArrow,
+  drawHandPath,
   clearSvg,
 } from "@/utils/roughDraw";
 import HandPin from "@/components/HandPin";
@@ -50,12 +51,17 @@ export default function HandDrawnOverlay({
   const placesRef = useRef(places);
   placesRef.current = places;
 
+  // 距离编辑状态：正在编辑的路段索引（toPlace 在 places 中的下标）
+  const [editingSegment, setEditingSegment] = useState<number | null>(null);
+  const [distInput, setDistInput] = useState("");
+
   const toggleBubble = useMapStore((s) => s.toggleBubble);
   const setBubbleOffset = useMapStore((s) => s.setBubbleOffset);
   const setNote = useMapStore((s) => s.setNote);
+  const setDistance = useMapStore((s) => s.setDistance);
 
-  // 计算单个地点在容器内的像素坐标
-  const toPoint = (p: PlaceLocation) => {
+  // 计算坐标点在容器内的像素坐标
+  const toPoint = (p: { lat: number; lon: number }) => {
     const pt = map.latLngToContainerPoint(L.latLng(p.lat, p.lon));
     return { x: pt.x, y: pt.y };
   };
@@ -74,14 +80,11 @@ export default function HandDrawnOverlay({
       const to = toPoint(toPlace);
       const route = toPlace.routeFromPrevious;
       if (route && route.length >= 2) {
-        // 按道路路径点连线（每段手绘曲线，bend 交替）
+        // 用单条 rough.js 路径绘制整条道路（比逐段绘制性能更好）
         const pts = [from, ...route.map((r) => toPoint(r)), to];
-        for (let j = 0; j < pts.length - 1; j++) {
-          const bend = j % 2 === 0 ? 1 : -1;
-          drawHandLine(rc, svg, pts[j], pts[j + 1], {}, bend);
-        }
+        drawHandPath(rc, svg, pts);
       } else {
-        // 无路径：降级为两点直线
+        // 无路径：降级为两点手绘曲线
         const bend = i % 2 === 0 ? 1 : -1;
         drawHandLine(rc, svg, from, to, {}, bend);
       }
@@ -139,6 +142,21 @@ export default function HandDrawnOverlay({
     };
   };
 
+  // 提交距离输入
+  const handleDistSubmit = () => {
+    if (editingSegment === null) return;
+    const place = places[editingSegment];
+    if (!place) return;
+    const val = parseFloat(distInput);
+    if (!Number.isNaN(val) && val >= 0) {
+      setDistance(place.id, val);
+    } else if (distInput.trim() === "") {
+      setDistance(place.id, null);
+    }
+    setEditingSegment(null);
+    setDistInput("");
+  };
+
   return (
     <div
       ref={overlayRef}
@@ -159,6 +177,7 @@ export default function HandDrawnOverlay({
         return (
           <div
             key={`pin-${place.id}`}
+            data-role="pin"
             className="pointer-events-auto absolute"
             style={{
               left: pt.x - 20,
@@ -185,6 +204,7 @@ export default function HandDrawnOverlay({
         return (
           <div
             key={`label-${place.id}`}
+            data-role="label"
             className="pointer-events-none absolute flex justify-center"
             style={{
               left: pt.x - 80,
@@ -208,6 +228,87 @@ export default function HandDrawnOverlay({
         );
       })}
 
+      {/* 路段距离标签与点击区 - 在路线中点显示 */}
+      {places.slice(1).map((toPlace, idx) => {
+        const fromPlace = places[idx];
+        const from = toPoint(fromPlace);
+        const to = toPoint(toPlace);
+        const route = toPlace.routeFromPrevious;
+        // 标签定位在路线中点，而非直线中点
+        let midX: number;
+        let midY: number;
+        if (route && route.length >= 2) {
+          const midRoute = route[Math.floor(route.length / 2)];
+          const midPt = toPoint(midRoute);
+          midX = midPt.x;
+          midY = midPt.y;
+        } else {
+          midX = (from.x + to.x) / 2;
+          midY = (from.y + to.y) / 2;
+        }
+        const dist = toPlace.distanceFromPrevious;
+        const isEditing = editingSegment === idx + 1;
+
+        return (
+          <div
+            key={`dist-${toPlace.id}`}
+            data-role="distance"
+            className="pointer-events-auto absolute"
+            style={{
+              left: midX - 40,
+              top: midY - 14,
+              width: 80,
+            }}
+          >
+            {isEditing ? (
+              <div
+                className="flex items-center gap-1 bg-paper-50/95 border-2 border-ink-800 rounded-lg px-1.5 py-0.5 shadow-md"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <input
+                  autoFocus
+                  type="number"
+                  value={distInput}
+                  onChange={(e) => setDistInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleDistSubmit();
+                    if (e.key === "Escape") {
+                      setEditingSegment(null);
+                      setDistInput("");
+                    }
+                  }}
+                  onBlur={handleDistSubmit}
+                  placeholder="km"
+                  className="w-12 text-sm font-hand-cn text-ink-800 bg-transparent outline-none text-center"
+                />
+                <span className="text-xs text-ink-600 font-hand-en">km</span>
+              </div>
+            ) : (
+              <button
+                onClick={() => {
+                  setEditingSegment(idx + 1);
+                  setDistInput(
+                    dist != null ? String(dist) : "",
+                  );
+                }}
+                className="block w-full text-center text-xs font-hand-cn px-1.5 py-0.5 rounded-md transition-all hover:bg-paper-50/80"
+                style={{
+                  color: dist != null ? "#3E2C1C" : "rgba(82, 64, 46, 0.5)",
+                  background:
+                    dist != null ? "rgba(251, 243, 224, 0.85)" : "transparent",
+                  border: dist != null
+                    ? "1px solid rgba(62, 44, 28, 0.3)"
+                    : "1px solid transparent",
+                }}
+                title="点击设置距离"
+              >
+                {dist != null ? `${dist} km` : "···"}
+              </button>
+            )}
+          </div>
+        );
+      })}
+
       {/* 泡泡会话框 */}
       {places.map((place, i) => {
         if (!place.bubbleOpen) return null;
@@ -217,6 +318,7 @@ export default function HandDrawnOverlay({
         return (
           <div
             key={`bubble-${place.id}`}
+            data-role="bubble"
             className="pointer-events-auto absolute"
             style={{
               left: pt.x + place.bubbleOffset.x - 115,

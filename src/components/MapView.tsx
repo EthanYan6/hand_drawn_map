@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import { useMapStore } from "@/store/useMapStore";
 import { MAX_ZOOM_BY_LEVEL, MIN_ZOOM_BY_LEVEL } from "@/utils/mapLevel";
+import { setMapInstance } from "@/utils/mapInstance";
 import HandDrawnOverlay from "@/components/HandDrawnOverlay";
 
 // CARTO Voyager 无地名瓦片：仅保留地形与省/市/县/国行政边境线，无原生文字标注
@@ -42,6 +43,7 @@ export default function MapView() {
       maxZoom: 18,
     });
     mapRef.current = map;
+    setMapInstance(map);
 
     const tile = L.tileLayer(TILE_URL, {
       attribution: TILE_ATTR,
