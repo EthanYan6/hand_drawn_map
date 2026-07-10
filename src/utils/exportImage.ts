@@ -621,7 +621,8 @@ async function captureBubbles(
       ctx.drawImage(
         bubbleCanvas,
         Math.round(x * scale),
-        Math.round(y * scale),
+        // html2canvas 渲染泡泡时整体偏下，往上修正 10px
+        Math.round((y - 10) * scale),
       );
     }
     return canvas;
