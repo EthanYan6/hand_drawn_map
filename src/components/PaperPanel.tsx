@@ -42,7 +42,7 @@ export default function PaperPanel({
         }}
       />
       {tape && <div className="tape z-10" style={tapeStyle[tapePosition]} />}
-      <div className="relative z-[1]">{children}</div>
+      <div className="relative z-[1] h-full overflow-hidden">{children}</div>
     </div>
   );
 }
