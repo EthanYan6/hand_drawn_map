@@ -704,7 +704,9 @@ export async function exportImage(
       const bounds = calculateExportBounds(latestPlaces);
       map.fitBounds(bounds, {
         animate: false,
-        padding: [100, 100],
+        // padding 需容纳泡泡：上方泡泡最高约 255px（偏移 135 + 高度 120），
+        // 下方泡泡最低约 255px（偏移 135 + 高度 120），取 260 留余量
+        padding: [260, 260],
         maxZoom: 16,
       });
       // 等待新瓦片加载完成
