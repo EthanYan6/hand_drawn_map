@@ -704,7 +704,10 @@ export async function exportImage(
       const bounds = calculateExportBounds(latestPlaces);
       map.fitBounds(bounds, {
         animate: false,
-        padding: [100, 100],
+        // padding 需容纳：图钉高度52px + 气泡宽度230px/2 + 安全边距
+        // 上下方向图钉在地点上方52px，气泡可能向上或向下展开约120px
+        // 左右方向气泡宽230px，中心对齐地点，单侧约115px
+        padding: [180, 180],
         maxZoom: 16,
       });
       // fitBounds(animate:false) 同步更新地图状态，但瓦片 DOM 更新需要时间
