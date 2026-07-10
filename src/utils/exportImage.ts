@@ -702,19 +702,21 @@ export async function exportImage(
     // 自动缩放：计算所有地点和路线点的边界，fitBounds 到视野
     try {
       const bounds = calculateExportBounds(latestPlaces);
+      console.log("[export] 地点数:", latestPlaces.length, "边界:", bounds.toBBoxString());
+      console.log("[export] 缩放前 zoom:", map.getZoom(), "center:", map.getCenter().toString());
+      // 强制 Leaflet 重新计算容器尺寸，避免因容器尺寸异常导致 fitBounds 不生效
+      map.invalidateSize();
       map.fitBounds(bounds, {
         animate: false,
-        // padding 需容纳：图钉高度52px + 气泡宽度230px/2 + 安全边距
-        // 上下方向图钉在地点上方52px，气泡可能向上或向下展开约120px
-        // 左右方向气泡宽230px，中心对齐地点，单侧约115px
-        padding: [180, 180],
+        padding: [120, 120],
         maxZoom: 16,
       });
+      console.log("[export] 缩放后 zoom:", map.getZoom(), "center:", map.getCenter().toString());
       // fitBounds(animate:false) 同步更新地图状态，但瓦片 DOM 更新需要时间
       // 若立即调用 waitForTilesLoaded，旧瓦片仍为 complete 状态会导致立即返回，
       // 捕获到的是旧视野（当前屏幕）。必须等 Leaflet 清除旧瓦片、请求新瓦片后再等待加载
       await new Promise<void>((resolve) =>
-        requestAnimationFrame(() => setTimeout(() => resolve(), 150)),
+        requestAnimationFrame(() => setTimeout(() => resolve(), 200)),
       );
       // 等待新瓦片加载完成
       await waitForTilesLoaded(target, 8000);
