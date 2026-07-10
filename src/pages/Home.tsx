@@ -37,7 +37,7 @@ export default function Home() {
 
       {/* 左侧控制面板 */}
       <aside className="absolute top-6 left-6 bottom-6 w-[300px] z-[600] flex flex-col">
-        <PaperPanel tape tapePosition="top-left" className="flex flex-col h-full">
+        <PaperPanel tape tapePosition="top-left" className="flex flex-col h-full overflow-hidden">
           {/* 面板头部 */}
           <div className="px-4 pt-4 pb-3 border-b-2 border-dashed border-ink-700/40">
             <div className="flex items-center gap-2">
