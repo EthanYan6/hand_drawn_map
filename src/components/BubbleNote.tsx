@@ -90,14 +90,12 @@ export default function BubbleNote({
         )}
       >
         {/* 标题栏 - 可拖拽 */}
-        {/* 用 line-height + flex-start 替代 items-center，避免 html2canvas 垂直居中渲染偏移 */}
         <div
-          className="flex items-start gap-1.5 border-b-2 border-dashed border-ink-700/50 px-2.5 py-1.5 cursor-grab active:cursor-grabbing"
-          style={{ lineHeight: "20px" }}
+          className="flex items-center gap-1.5 border-b-2 border-dashed border-ink-700/50 px-2.5 py-1.5 cursor-grab active:cursor-grabbing"
           onMouseDown={onDragStart}
         >
-          <GripVertical size={13} className="text-ink-600/70 shrink-0 mt-[3px]" />
-          <span className="font-hand-cn text-base text-ink-800 truncate flex-1">
+          <GripVertical size={13} className="text-ink-600/70 shrink-0" />
+          <span className="font-hand-cn text-base text-ink-800 truncate flex-1" data-role="bubble-title">
             <span className="text-stamp-500 mr-1">#{index}</span>
             {place.name}
           </span>
@@ -106,7 +104,7 @@ export default function BubbleNote({
               onNoteChange(null);
               onClose();
             }}
-            className="text-ink-600 hover:text-stamp-500 transition-colors p-0.5 mt-[2px]"
+            className="text-ink-600 hover:text-stamp-500 transition-colors p-0.5"
             aria-label="删除备注"
             title="删除备注"
           >
