@@ -1,8 +1,7 @@
 // 真正的弹幕组件：覆盖在地图上的飞行弹幕
 // 文字从屏幕右侧随机高度进入，向左横向飘过，飞出左侧后消失
-// 两条文案交替发射：累计人数 / 今日人数
+// 使用不蒜子 page_uv 按页面路径统计，避免与其他项目数据混淆
 // 数字加载前显示转圈 loading，加载后显示数字
-// 不蒜子 UV 按 IP 去重，每个 IP 每天只算一次
 
 import { useEffect, useRef, useState } from "react";
 
@@ -48,15 +47,13 @@ function StatNumber({ value }: { value: string | null }) {
 
 interface DanmakuItem {
   id: number;
-  text: "total" | "today";
   top: number; // 顶部偏移百分比（随机）
   duration: number; // 飞行耗时（秒）
   delay: number; // 发射延迟（秒）
 }
 
 export default function DanmakuBar() {
-  const [siteUv, setSiteUv] = useState<string | null>(null);
-  const [todayUv, setTodayUv] = useState<string | null>(null);
+  const [pageUv, setPageUv] = useState<string | null>(null);
   const [hidden, setHidden] = useState(false);
   const gotAnyRef = useRef(false);
   // 弹幕队列
@@ -64,15 +61,12 @@ export default function DanmakuBar() {
   const idCounter = useRef(0);
 
   useEffect(() => {
-    const siteSpan = document.createElement("span");
-    siteSpan.id = "busuanzi_site_uv";
-    const todaySpan = document.createElement("span");
-    todaySpan.id = "busuanzi_today_uv";
+    const pageSpan = document.createElement("span");
+    pageSpan.id = "busuanzi_page_uv";
     const holder = document.createElement("div");
     holder.style.cssText =
       "position:absolute;left:-9999px;top:-9999px;visibility:hidden;pointer-events:none;";
-    holder.appendChild(siteSpan);
-    holder.appendChild(todaySpan);
+    holder.appendChild(pageSpan);
     document.body.appendChild(holder);
 
     const readNumber = (el: HTMLElement): string | null => {
@@ -82,22 +76,16 @@ export default function DanmakuBar() {
     };
 
     const sync = () => {
-      const s = readNumber(siteSpan);
-      const t = readNumber(todaySpan);
+      const s = readNumber(pageSpan);
       if (s) {
-        setSiteUv(s);
-        gotAnyRef.current = true;
-      }
-      if (t) {
-        setTodayUv(t);
+        setPageUv(s);
         gotAnyRef.current = true;
       }
     };
 
     sync();
     const obs = new MutationObserver(sync);
-    obs.observe(siteSpan, { childList: true, characterData: true, subtree: true });
-    obs.observe(todaySpan, { childList: true, characterData: true, subtree: true });
+    obs.observe(pageSpan, { childList: true, characterData: true, subtree: true });
 
     const poll = setInterval(sync, 600);
     const timeout = setTimeout(() => {
@@ -112,16 +100,16 @@ export default function DanmakuBar() {
     };
   }, []);
 
-  // 顶部两条弹幕：累计 + 今日，隔一会儿飘一次
-  // 每条飞完后等几秒再重新飘，保证屏幕上最多只有这两条
+  // 弹幕：累计人数，隔一会儿飘一次
+  // 每条飞完后等几秒再重新飘
   useEffect(() => {
     if (hidden) return;
 
-    const launchOne = (text: "total" | "today", top: number) => {
+    const launchOne = (top: number) => {
       const duration = 16; // 16 秒飞行
       idCounter.current += 1;
       const id = idCounter.current;
-      setItems((prev) => [...prev, { id, text, top, duration, delay: 0 }]);
+      setItems((prev) => [...prev, { id, top, duration, delay: 0 }]);
       // 飞完后从队列移除，并安排下次发射
       setTimeout(() => {
         setItems((prev) => prev.filter((it) => it.id !== id));
@@ -130,31 +118,21 @@ export default function DanmakuBar() {
 
     // 累计弹幕：顶部第一行，飞完后间隔 4 秒重新飘
     const cycleTotal = () => {
-      launchOne("total", 6);
+      launchOne(6);
       timerTotal = setTimeout(cycleTotal, 16000 + 4000);
-    };
-    // 今日弹幕：顶部第二行，错开 8 秒启动，避免两条同时出发
-    const cycleToday = () => {
-      launchOne("today", 40);
-      timerToday = setTimeout(cycleToday, 16000 + 4000);
     };
 
     let timerTotal: ReturnType<typeof setTimeout>;
-    let timerToday: ReturnType<typeof setTimeout>;
     cycleTotal();
-    const startToday = setTimeout(cycleToday, 8000);
 
     return () => {
       clearTimeout(timerTotal);
-      clearTimeout(timerToday);
-      clearTimeout(startToday);
     };
   }, [hidden]);
 
   if (hidden) return null;
 
   const renderItem = (item: DanmakuItem) => {
-    const isTotal = item.text === "total";
     return (
       <div
         key={item.id}
@@ -170,21 +148,12 @@ export default function DanmakuBar() {
             "1px 1px 0 rgba(42,26,14,0.9), -1px -1px 0 rgba(42,26,14,0.9), 1px -1px 0 rgba(42,26,14,0.9), -1px 1px 0 rgba(42,26,14,0.9), 0 2px 4px rgba(0,0,0,0.6)",
         }}
       >
-        {isTotal ? (
-          <span>
-            共有
-            <StatNumber value={siteUv} />
-            人与你一起使用旅行手账
-            <span className="mx-2 text-watercolor-400">✦</span>
-          </span>
-        ) : (
-          <span className="text-paper-100">
-            今日共有
-            <StatNumber value={todayUv} />
-            人使用
-            <span className="mx-2 text-stamp-400">✧</span>
-          </span>
-        )}
+        <span>
+          共有
+          <StatNumber value={pageUv} />
+          人与你一起使用旅行手账
+          <span className="mx-2 text-watercolor-400">✦</span>
+        </span>
       </div>
     );
   };
