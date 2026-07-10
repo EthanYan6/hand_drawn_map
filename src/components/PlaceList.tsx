@@ -41,7 +41,7 @@ export default function PlaceList() {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0">
       {/* 顶部信息条 */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-dashed border-ink-700/40">
         <span className="font-hand-cn text-sm text-ink-700">
@@ -67,7 +67,7 @@ export default function PlaceList() {
       </div>
 
       {/* 列表 */}
-      <div className="flex-1 overflow-y-auto custom-scroll px-2 py-2 space-y-1.5">
+      <div className="flex-1 min-h-0 overflow-y-auto custom-scroll px-2 py-2 space-y-1.5">
         {places.map((place, i) => (
           <div
             key={place.id}
