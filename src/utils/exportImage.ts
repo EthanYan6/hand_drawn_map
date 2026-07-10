@@ -9,9 +9,9 @@ import { useMapStore } from "@/store/useMapStore";
 import { getMapInstance } from "@/utils/mapInstance";
 import type { PlaceLocation } from "@/types";
 
-const EXPORT_W = 1350;
-const EXPORT_H = 1000;
-const TITLE_RATIO = 0.09; // 标题区占比（收紧，减少空白）
+const TITLE_HEIGHT = 90; // 固定标题区高度（像素）
+const MIN_EXPORT_WIDTH = 800; // 最小导出宽度（避免太窄）
+const MAX_EXPORT_WIDTH = 2400; // 最大导出宽度（避免太宽）
 const TITLE_MAP_GAP = 0; // 标题区与地图之间无间距
 const CAPTURE_SCALE = 2; // 瓦片与 overlay 都用 2 倍像素密度
 
@@ -803,32 +803,16 @@ async function waitForTilesLoaded(
   }
 }
 
-// 计算地图在导出图中的绘制区域：顶部紧贴标题区下方，底部贴齐底边
+// 计算地图在导出图中的绘制区域：顶部紧贴标题区下方，左右无空白
+// 导出图片尺寸由地图实际尺寸 + 标题高度决定
 function calculateMapDrawRect(
-  mapCanvasWidth: number,
-  mapCanvasHeight: number,
-  exportWidth: number,
-  exportHeight: number,
   titleHeight: number,
-): { drawX: number; drawY: number; drawW: number; drawH: number } {
-  const mapTop = titleHeight + TITLE_MAP_GAP;
-  const availableHeight = exportHeight - mapTop;
-  const availableWidth = exportWidth;
-  const mapRatio = mapCanvasWidth / mapCanvasHeight;
+): { drawX: number; drawY: number } {
+  // 地图直接从标题下方开始绘制，无水平偏移
+  const drawX = 0;
+  const drawY = titleHeight + TITLE_MAP_GAP;
 
-  let drawH = availableHeight;
-  let drawW = drawH * mapRatio;
-
-  if (drawW > availableWidth) {
-    drawW = availableWidth;
-    drawH = drawW / mapRatio;
-  }
-
-  const drawX = (availableWidth - drawW) / 2;
-  // 地图顶部紧贴标题下方（虚线），底部尽量贴齐底边
-  const drawY = mapTop;
-
-  return { drawX, drawY, drawW, drawH };
+  return { drawX, drawY };
 }
 
 // 主导出函数
@@ -966,34 +950,39 @@ export async function exportImage(
   }
 
   // 10. 合成最终图片（标题 + 地图 + 里程信息 + 日期）
-  const titleH = Math.round(EXPORT_H * TITLE_RATIO);
+  // 标题区高度固定
+  const titleH = TITLE_HEIGHT;
+
+  // 根据地图实际尺寸计算最终图片尺寸
+  // 地图 canvas 尺寸是 CAPTURE_SCALE 倍的原始尺寸，需要还原
+  const mapActualWidth = mapCanvas.width / CAPTURE_SCALE;
+  const mapActualHeight = mapCanvas.height / CAPTURE_SCALE;
+
+  // 导出尺寸：宽度为地图宽度（限制最小和最大值），高度为标题 + 地图高度
+  let exportW = Math.round(mapActualWidth);
+  exportW = Math.max(MIN_EXPORT_WIDTH, Math.min(MAX_EXPORT_WIDTH, exportW));
+  const exportH = titleH + Math.round(mapActualHeight);
 
   const finalCanvas = document.createElement("canvas");
-  finalCanvas.width = EXPORT_W;
-  finalCanvas.height = EXPORT_H;
+  finalCanvas.width = exportW;
+  finalCanvas.height = exportH;
   const ctx = finalCanvas.getContext("2d");
   if (!ctx) throw new Error("无法创建 canvas 上下文");
 
   // 整体纸张背景
-  drawPaperBackground(ctx, EXPORT_W, EXPORT_H);
+  drawPaperBackground(ctx, exportW, exportH);
 
   // 标题区（含签名）
-  await drawTitleArea(ctx, finalTitle, signature, EXPORT_W, titleH);
+  await drawTitleArea(ctx, finalTitle, signature, exportW, titleH);
 
-  // 地图区：底边贴齐导出图底部，尽量减少标题下方空白
-  const mapDrawRect = calculateMapDrawRect(
-    mapCanvas.width,
-    mapCanvas.height,
-    EXPORT_W,
-    EXPORT_H,
-    titleH,
-  );
+  // 地图区：直接绘制在标题下方，左右无空白
+  const mapDrawPos = calculateMapDrawRect(titleH);
   ctx.drawImage(
     mapCanvas,
-    mapDrawRect.drawX,
-    mapDrawRect.drawY,
-    mapDrawRect.drawW,
-    mapDrawRect.drawH,
+    mapDrawPos.drawX,
+    mapDrawPos.drawY,
+    mapActualWidth,
+    mapActualHeight,
   );
 
   // 右下角里程信息框
@@ -1001,10 +990,10 @@ export async function exportImage(
     (sum, p) => sum + (p.distanceFromPrevious ?? 0),
     0,
   );
-  drawTripInfo(ctx, EXPORT_W, EXPORT_H, totalKm, startDate, endDate);
+  drawTripInfo(ctx, exportW, exportH, totalKm, startDate, endDate);
 
   // 右下角日期时间
-  drawDateTime(ctx, EXPORT_W, EXPORT_H);
+  drawDateTime(ctx, exportW, exportH);
 
   // 11. 下载
   await new Promise<void>((resolve, reject) => {
