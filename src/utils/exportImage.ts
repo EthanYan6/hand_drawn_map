@@ -12,7 +12,7 @@ import type { PlaceLocation } from "@/types";
 const EXPORT_W = 1920;
 const EXPORT_H = 1280;
 const TITLE_RATIO = 0.11; // 标题区占比（收紧，减少标题下方空白）
-const TITLE_MAP_GAP = 6; // 标题区与地图之间的间距
+const TITLE_MAP_GAP = 1; // 标题区与地图之间的间距
 const CAPTURE_SCALE = 2; // 瓦片与 overlay 都用 2 倍像素密度
 
 // 等待字体加载完成
