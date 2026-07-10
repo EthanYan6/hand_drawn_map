@@ -91,6 +91,7 @@ export default function BubbleNote({
       >
         {/* 标题栏 - 可拖拽 */}
         <div
+          data-role="bubble-title"
           className="flex items-center gap-1.5 border-b-2 border-dashed border-ink-700/50 px-2.5 py-1.5 cursor-grab active:cursor-grabbing"
           onMouseDown={onDragStart}
         >

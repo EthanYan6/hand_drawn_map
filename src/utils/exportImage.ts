@@ -591,6 +591,20 @@ async function captureBubbles(
   const savedSvgDisplay = svgEl?.style.display || "";
   if (svgEl) svgEl.style.display = "none";
 
+  // 修正气泡标题栏导出偏下：html2canvas 对 flex items-center 的垂直居中有偏下 bug
+  // 临时改为 flex-start + line-height 精确控制，仅影响导出，不影响页面显示
+  const titleBars = overlay.querySelectorAll<HTMLElement>(
+    '[data-role="bubble-title"]',
+  );
+  const savedTitleStyles: { el: HTMLElement; cssText: string }[] = [];
+  titleBars.forEach((el) => {
+    savedTitleStyles.push({ el, cssText: el.style.cssText });
+    el.style.alignItems = "flex-start";
+    el.style.lineHeight = "1.1";
+    el.style.paddingTop = "5px";
+    el.style.paddingBottom = "5px";
+  });
+
   try {
     const canvas = await html2canvas(overlay, {
       useCORS: true,
@@ -607,6 +621,9 @@ async function captureBubbles(
       el.style.display = display;
     });
     if (svgEl) svgEl.style.display = savedSvgDisplay;
+    savedTitleStyles.forEach(({ el, cssText }) => {
+      el.style.cssText = cssText;
+    });
   }
 }
 
@@ -702,8 +719,6 @@ export async function exportImage(
     // 自动缩放：计算所有地点和路线点的边界，fitBounds 到视野
     try {
       const bounds = calculateExportBounds(latestPlaces);
-      console.log("[export] 地点数:", latestPlaces.length, "边界:", bounds.toBBoxString());
-      console.log("[export] 缩放前 zoom:", map.getZoom(), "center:", map.getCenter().toString());
       // 强制 Leaflet 重新计算容器尺寸，避免因容器尺寸异常导致 fitBounds 不生效
       map.invalidateSize();
       map.fitBounds(bounds, {
@@ -711,7 +726,6 @@ export async function exportImage(
         padding: [120, 120],
         maxZoom: 16,
       });
-      console.log("[export] 缩放后 zoom:", map.getZoom(), "center:", map.getCenter().toString());
       // fitBounds(animate:false) 同步更新地图状态，但瓦片 DOM 更新需要时间
       // 若立即调用 waitForTilesLoaded，旧瓦片仍为 complete 状态会导致立即返回，
       // 捕获到的是旧视野（当前屏幕）。必须等 Leaflet 清除旧瓦片、请求新瓦片后再等待加载
@@ -796,17 +810,19 @@ export async function exportImage(
   // 标题区（含签名）
   await drawTitleArea(ctx, finalTitle, signature, EXPORT_W, titleH);
 
-  // 地图区（contain 模式，居中）
+  // 地图区（contain 模式，居中，严格限制在标题区下方不溢出）
   const mapRatio = mapCanvas.width / mapCanvas.height;
   const targetRatio = EXPORT_W / mapH;
   let drawW: number;
   let drawH: number;
   if (mapRatio > targetRatio) {
-    drawH = mapH;
-    drawW = mapH * mapRatio;
-  } else {
+    // 地图更宽：以宽度为基准
     drawW = EXPORT_W;
     drawH = EXPORT_W / mapRatio;
+  } else {
+    // 地图更高：以高度为基准
+    drawH = mapH;
+    drawW = mapH * mapRatio;
   }
   const drawX = (EXPORT_W - drawW) / 2;
   const drawY = titleH + (mapH - drawH) / 2;
