@@ -11,7 +11,8 @@ import type { PlaceLocation } from "@/types";
 
 const EXPORT_W = 1920;
 const EXPORT_H = 1280;
-const TITLE_RATIO = 0.16; // 标题区占 16%（稍高，容纳签名）
+const TITLE_RATIO = 0.11; // 标题区占比（收紧，减少标题下方空白）
+const TITLE_MAP_GAP = 6; // 标题区与地图之间的间距
 const CAPTURE_SCALE = 2; // 瓦片与 overlay 都用 2 倍像素密度
 
 // 等待字体加载完成
@@ -591,8 +592,7 @@ async function captureBubbles(
   const savedSvgDisplay = svgEl?.style.display || "";
   if (svgEl) svgEl.style.display = "none";
 
-  // 修正气泡标题文字导出偏下：html2canvas 渲染手写字体时垂直位置偏下
-  // 导出前临时上移半个字高，并解除 truncate 的 overflow 裁切，避免下半截被遮挡
+  // 修正气泡标题栏导出布局：文字上移修正基线，图标同步下移对齐同一行
   const titleBars = overlay.querySelectorAll<HTMLElement>(
     '[data-role="bubble-title"]',
   );
@@ -600,9 +600,9 @@ async function captureBubbles(
   titleBars.forEach((titleBar) => {
     savedTitleBarStyles.push({ el: titleBar, cssText: titleBar.style.cssText });
     titleBar.style.overflow = "visible";
-    titleBar.style.alignItems = "flex-start";
-    titleBar.style.paddingTop = "2px";
-    titleBar.style.paddingBottom = "10px";
+    titleBar.style.alignItems = "center";
+    titleBar.style.paddingTop = "4px";
+    titleBar.style.paddingBottom = "8px";
   });
 
   const titleTextElements = overlay.querySelectorAll<HTMLElement>(
@@ -617,6 +617,21 @@ async function captureBubbles(
     titleTextElement.style.overflow = "visible";
     titleTextElement.style.textOverflow = "clip";
     titleTextElement.style.transform = "translateY(-0.5em)";
+  });
+
+  const titleActionElements = overlay.querySelectorAll<HTMLElement>(
+    '[data-role="bubble-title-grip"], [data-role="bubble-title-close"]',
+  );
+  const savedTitleActionStyles: { el: HTMLElement; cssText: string }[] = [];
+  titleActionElements.forEach((actionElement) => {
+    savedTitleActionStyles.push({
+      el: actionElement,
+      cssText: actionElement.style.cssText,
+    });
+    actionElement.style.display = "flex";
+    actionElement.style.alignItems = "center";
+    actionElement.style.flexShrink = "0";
+    actionElement.style.transform = "translateY(-0.15em)";
   });
 
   try {
@@ -639,6 +654,9 @@ async function captureBubbles(
       el.style.cssText = cssText;
     });
     savedTitleTextStyles.forEach(({ el, cssText }) => {
+      el.style.cssText = cssText;
+    });
+    savedTitleActionStyles.forEach(({ el, cssText }) => {
       el.style.cssText = cssText;
     });
   }
@@ -785,6 +803,33 @@ async function waitForTilesLoaded(
   }
 }
 
+// 计算地图在导出图中的绘制区域：底边贴齐、尽量减少标题下方空白
+function calculateMapDrawRect(
+  mapCanvasWidth: number,
+  mapCanvasHeight: number,
+  exportWidth: number,
+  exportHeight: number,
+  titleHeight: number,
+): { drawX: number; drawY: number; drawW: number; drawH: number } {
+  const mapTop = titleHeight + TITLE_MAP_GAP;
+  const availableHeight = exportHeight - mapTop;
+  const availableWidth = exportWidth;
+  const mapRatio = mapCanvasWidth / mapCanvasHeight;
+
+  let drawH = availableHeight;
+  let drawW = drawH * mapRatio;
+
+  if (drawW > availableWidth) {
+    drawW = availableWidth;
+    drawH = drawW / mapRatio;
+  }
+
+  const drawX = (availableWidth - drawW) / 2;
+  const drawY = exportHeight - drawH;
+
+  return { drawX, drawY, drawW, drawH };
+}
+
 // 主导出函数
 // title: 标题；signature: 签名（字符串=名字 / dataURL=手写图片 / null=无签名）
 // startDate: 开始日期（YYYY-MM-DD）；endDate: 结束日期
@@ -921,7 +966,6 @@ export async function exportImage(
 
   // 10. 合成最终图片（标题 + 地图 + 里程信息 + 日期）
   const titleH = Math.round(EXPORT_H * TITLE_RATIO);
-  const mapH = EXPORT_H - titleH;
 
   const finalCanvas = document.createElement("canvas");
   finalCanvas.width = EXPORT_W;
@@ -935,23 +979,21 @@ export async function exportImage(
   // 标题区（含签名）
   await drawTitleArea(ctx, finalTitle, signature, EXPORT_W, titleH);
 
-  // 地图区（contain 模式，居中，严格限制在标题区下方不溢出）
-  const mapRatio = mapCanvas.width / mapCanvas.height;
-  const targetRatio = EXPORT_W / mapH;
-  let drawW: number;
-  let drawH: number;
-  if (mapRatio > targetRatio) {
-    // 地图更宽：以宽度为基准
-    drawW = EXPORT_W;
-    drawH = EXPORT_W / mapRatio;
-  } else {
-    // 地图更高：以高度为基准
-    drawH = mapH;
-    drawW = mapH * mapRatio;
-  }
-  const drawX = (EXPORT_W - drawW) / 2;
-  const drawY = titleH + (mapH - drawH) / 2;
-  ctx.drawImage(mapCanvas, drawX, drawY, drawW, drawH);
+  // 地图区：底边贴齐导出图底部，尽量减少标题下方空白
+  const mapDrawRect = calculateMapDrawRect(
+    mapCanvas.width,
+    mapCanvas.height,
+    EXPORT_W,
+    EXPORT_H,
+    titleH,
+  );
+  ctx.drawImage(
+    mapCanvas,
+    mapDrawRect.drawX,
+    mapDrawRect.drawY,
+    mapDrawRect.drawW,
+    mapDrawRect.drawH,
+  );
 
   // 右下角里程信息框
   const totalKm = latestPlaces.reduce(

@@ -95,7 +95,12 @@ export default function BubbleNote({
           className="flex items-center gap-1.5 border-b-2 border-dashed border-ink-700/50 px-2.5 py-1.5 cursor-grab active:cursor-grabbing"
           onMouseDown={onDragStart}
         >
-          <GripVertical size={13} className="text-ink-600/70 shrink-0" />
+          <span
+            data-role="bubble-title-grip"
+            className="shrink-0 flex items-center text-ink-600/70"
+          >
+            <GripVertical size={13} />
+          </span>
           <span
             data-role="bubble-title-text"
             className="font-hand-cn text-base text-ink-800 truncate flex-1"
@@ -104,6 +109,7 @@ export default function BubbleNote({
             {place.name}
           </span>
           <button
+            data-role="bubble-title-close"
             onClick={() => {
               onNoteChange(null);
               onClose();
