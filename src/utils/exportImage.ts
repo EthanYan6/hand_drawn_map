@@ -9,7 +9,7 @@ import { useMapStore } from "@/store/useMapStore";
 import { getMapInstance } from "@/utils/mapInstance";
 import type { PlaceLocation } from "@/types";
 
-const EXPORT_W = 1420;
+const EXPORT_W = 1320;
 const EXPORT_H = 1000;
 const TITLE_RATIO = 0.09; // 标题区占比（收紧，减少空白）
 const TITLE_MAP_GAP = 0; // 标题区与地图之间无间距
