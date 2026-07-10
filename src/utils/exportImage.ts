@@ -525,8 +525,21 @@ async function drawOverlayElements(
 
     const from = points[i - 1];
     const to = points[i];
-    const midX = (from.x + to.x) / 2;
-    const midY = (from.y + to.y) / 2;
+    const route = places[i].routeFromPrevious;
+    // 标签定位在路线中点，而非直线中点
+    let midX: number;
+    let midY: number;
+    if (route && route.length >= 2) {
+      const midRoute = route[Math.floor(route.length / 2)];
+      const midPt = map.latLngToContainerPoint(
+        L.latLng(midRoute.lat, midRoute.lon),
+      );
+      midX = midPt.x;
+      midY = midPt.y;
+    } else {
+      midX = (from.x + to.x) / 2;
+      midY = (from.y + to.y) / 2;
+    }
 
     const text = `${dist} km`;
     ctx.font = '12px "Ma Shan Zheng", "Noto Serif SC", serif';

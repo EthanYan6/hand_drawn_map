@@ -140,9 +140,10 @@ export const useMapStore = create<MapState>((set, get) => ({
       }
 
       // 后台异步获取道路路径（不阻塞 UI）
-      // 远距离（>500km）自动跳过，逐个完成后更新 state
+      // 批量获取后一次性更新 store，避免逐个 set 导致多次重渲染
       const routeBaseIndex = existingCount;
       void (async () => {
+        const routeMap = new Map<string, { lat: number; lon: number }[]>();
         for (let i = 0; i < newPlaces.length; i++) {
           const globalIdx = routeBaseIndex + i;
           if (globalIdx === 0) continue;
@@ -156,13 +157,17 @@ export const useMapStore = create<MapState>((set, get) => ({
             { lat: from.lat, lon: from.lon },
             { lat: to.lat, lon: to.lon },
           );
-          if (route) {
-            // 逐个更新对应地点的 routeFromPrevious
-            set({
-              places: get().places.map((p) =>
-                p.id === to.id ? { ...p, routeFromPrevious: route } : p),
-            });
-          }
+          routeMap.set(to.id, route);
+        }
+        // 一次性更新所有路由，触发一次重渲染
+        if (routeMap.size > 0) {
+          set({
+            places: get().places.map((p) =>
+              routeMap.has(p.id)
+                ? { ...p, routeFromPrevious: routeMap.get(p.id)! }
+                : p,
+            ),
+          });
         }
       })();
     } catch (e) {

@@ -9,6 +9,7 @@ import {
   getRoughSvg,
   drawHandLine,
   drawHandArrow,
+  drawHandPath,
   clearSvg,
 } from "@/utils/roughDraw";
 import HandPin from "@/components/HandPin";
@@ -79,14 +80,11 @@ export default function HandDrawnOverlay({
       const to = toPoint(toPlace);
       const route = toPlace.routeFromPrevious;
       if (route && route.length >= 2) {
-        // 按道路路径点连线（每段手绘曲线，bend 交替）
+        // 用单条 rough.js 路径绘制整条道路（比逐段绘制性能更好）
         const pts = [from, ...route.map((r) => toPoint(r)), to];
-        for (let j = 0; j < pts.length - 1; j++) {
-          const bend = j % 2 === 0 ? 1 : -1;
-          drawHandLine(rc, svg, pts[j], pts[j + 1], {}, bend);
-        }
+        drawHandPath(rc, svg, pts);
       } else {
-        // 无路径：降级为两点直线
+        // 无路径：降级为两点手绘曲线
         const bend = i % 2 === 0 ? 1 : -1;
         drawHandLine(rc, svg, from, to, {}, bend);
       }
@@ -230,13 +228,24 @@ export default function HandDrawnOverlay({
         );
       })}
 
-      {/* 路段距离标签与点击区 - 在每段连线中点显示 */}
+      {/* 路段距离标签与点击区 - 在路线中点显示 */}
       {places.slice(1).map((toPlace, idx) => {
         const fromPlace = places[idx];
         const from = toPoint(fromPlace);
         const to = toPoint(toPlace);
-        const midX = (from.x + to.x) / 2;
-        const midY = (from.y + to.y) / 2;
+        const route = toPlace.routeFromPrevious;
+        // 标签定位在路线中点，而非直线中点
+        let midX: number;
+        let midY: number;
+        if (route && route.length >= 2) {
+          const midRoute = route[Math.floor(route.length / 2)];
+          const midPt = toPoint(midRoute);
+          midX = midPt.x;
+          midY = midPt.y;
+        } else {
+          midX = (from.x + to.x) / 2;
+          midY = (from.y + to.y) / 2;
+        }
         const dist = toPlace.distanceFromPrevious;
         const isEditing = editingSegment === idx + 1;
 
