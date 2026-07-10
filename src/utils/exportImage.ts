@@ -610,6 +610,51 @@ async function captureBubbles(
   }
 }
 
+// 计算所有地点和路线点的边界，用于导出时自动缩放居中
+function calculateExportBounds(places: PlaceLocation[]): L.LatLngBounds {
+  const points: [number, number][] = [];
+  for (const place of places) {
+    if (!Number.isNaN(place.lat) && !Number.isNaN(place.lon)) {
+      points.push([place.lat, place.lon]);
+    }
+    if (place.routeFromPrevious) {
+      for (const r of place.routeFromPrevious) {
+        if (!Number.isNaN(r.lat) && !Number.isNaN(r.lon)) {
+          points.push([r.lat, r.lon]);
+        }
+      }
+    }
+  }
+  if (points.length === 0) {
+    throw new Error("无可用的地点坐标");
+  }
+  return L.latLngBounds(points);
+}
+
+// 等待地图瓦片加载完成（DOM 轮询方式）
+async function waitForTilesLoaded(
+  container: HTMLElement,
+  timeoutMs = 4000,
+): Promise<void> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const tiles = Array.from(
+      container.querySelectorAll("img.leaflet-tile"),
+    ) as HTMLImageElement[];
+    if (tiles.length > 0) {
+      let allLoaded = true;
+      for (const img of tiles) {
+        if (!img.complete || img.naturalWidth === 0) {
+          allLoaded = false;
+          break;
+        }
+      }
+      if (allLoaded) return;
+    }
+    await new Promise((r) => setTimeout(r, 100));
+  }
+}
+
 // 主导出函数
 // title: 标题；signature: 签名（字符串=名字 / dataURL=手写图片 / null=无签名）
 // startDate: 开始日期（YYYY-MM-DD）；endDate: 结束日期
@@ -642,44 +687,74 @@ export async function exportImage(
   store.openAllBubbles();
   await new Promise((r) => setTimeout(r, 50));
 
-  // 3. 等待 DOM 渲染与瓦片稳定
-  await new Promise((r) => setTimeout(r, 900));
+  // 3. 自动缩放居中：将所有地点和路线缩放到视野中
+  const savedView = {
+    center: map.getCenter().clone(),
+    zoom: map.getZoom(),
+  };
 
-  // 4. 捕获瓦片层（手动绘制，绕过 html2canvas 对 Leaflet transform 的 bug）
-  const tileCanvas = await captureTileLayer(target, CAPTURE_SCALE);
-
-  // 5. 捕获 SVG 路线层（序列化为图片，绕过 html2canvas 对复杂 SVG 的性能瓶颈）
-  const svgEl = overlayEl?.querySelector("svg") as SVGSVGElement | null;
+  let tileCanvas!: HTMLCanvasElement;
   let svgCanvas: HTMLCanvasElement | null = null;
-  if (svgEl && overlayEl) {
-    const overlayRect = overlayEl.getBoundingClientRect();
-    svgCanvas = await captureSvgLayer(
-      svgEl,
-      overlayRect.width,
-      overlayRect.height,
-      CAPTURE_SCALE,
-    );
-  }
-
-  // 6. 手动绘制图钉/标签/距离标签到 overlay canvas
-  //    绕过 html2canvas 对 CSS transform 的渲染 bug
-  const overlayCanvas = document.createElement("canvas");
-  overlayCanvas.width = tileCanvas.width;
-  overlayCanvas.height = tileCanvas.height;
-  const overlayCtx = overlayCanvas.getContext("2d");
-  if (!overlayCtx) throw new Error("无法创建 overlay canvas 上下文");
-  await drawOverlayElements(overlayCtx, map, latestPlaces, CAPTURE_SCALE);
-
-  // 7. 捕获泡泡层（隐藏其他元素，仅用 html2canvas 捕获泡泡）
+  let overlayCanvas!: HTMLCanvasElement;
   let bubbleCanvas: HTMLCanvasElement | null = null;
-  if (overlayEl) {
-    bubbleCanvas = await captureBubbles(
-      overlayEl as HTMLElement,
-      CAPTURE_SCALE,
-    );
+
+  try {
+    // 自动缩放：计算所有地点和路线点的边界，fitBounds 到视野
+    try {
+      const bounds = calculateExportBounds(latestPlaces);
+      map.fitBounds(bounds, {
+        animate: false,
+        padding: [100, 100],
+        maxZoom: 16,
+      });
+      // 等待新瓦片加载完成
+      await waitForTilesLoaded(target, 4000);
+      // 等待 overlay 重绘（React rAF + 渲染）
+      await new Promise((r) => setTimeout(r, 200));
+    } catch {
+      // fitBounds 失败则使用当前视野
+    }
+
+    // 4. 等待 DOM 渲染稳定
+    await new Promise((r) => setTimeout(r, 300));
+
+    // 5. 捕获瓦片层（手动绘制，绕过 html2canvas 对 Leaflet transform 的 bug）
+    tileCanvas = await captureTileLayer(target, CAPTURE_SCALE);
+
+    // 6. 捕获 SVG 路线层（序列化为图片，绕过 html2canvas 对复杂 SVG 的性能瓶颈）
+    const svgEl = overlayEl?.querySelector("svg") as SVGSVGElement | null;
+    if (svgEl && overlayEl) {
+      const overlayRect = overlayEl.getBoundingClientRect();
+      svgCanvas = await captureSvgLayer(
+        svgEl,
+        overlayRect.width,
+        overlayRect.height,
+        CAPTURE_SCALE,
+      );
+    }
+
+    // 7. 手动绘制图钉/标签/距离标签到 overlay canvas
+    //    绕过 html2canvas 对 CSS transform 的渲染 bug
+    overlayCanvas = document.createElement("canvas");
+    overlayCanvas.width = tileCanvas.width;
+    overlayCanvas.height = tileCanvas.height;
+    const overlayCtx = overlayCanvas.getContext("2d");
+    if (!overlayCtx) throw new Error("无法创建 overlay canvas 上下文");
+    await drawOverlayElements(overlayCtx, map, latestPlaces, CAPTURE_SCALE);
+
+    // 8. 捕获泡泡层（隐藏其他元素，仅用 html2canvas 捕获泡泡）
+    if (overlayEl) {
+      bubbleCanvas = await captureBubbles(
+        overlayEl as HTMLElement,
+        CAPTURE_SCALE,
+      );
+    }
+  } finally {
+    // 恢复原始地图视野
+    map.setView(savedView.center, savedView.zoom, { animate: false });
   }
 
-  // 8. 合成地图层（瓦片 + SVG 路线 + 图钉/标签 + 泡泡）
+  // 9. 合成地图层（瓦片 + SVG 路线 + 图钉/标签 + 泡泡）
   const mapCanvas = document.createElement("canvas");
   mapCanvas.width = tileCanvas.width;
   mapCanvas.height = tileCanvas.height;
@@ -694,7 +769,7 @@ export async function exportImage(
     mapCtx.drawImage(bubbleCanvas, 0, 0, tileCanvas.width, tileCanvas.height);
   }
 
-  // 9. 合成最终图片（标题 + 地图 + 里程信息 + 日期）
+  // 10. 合成最终图片（标题 + 地图 + 里程信息 + 日期）
   const titleH = Math.round(EXPORT_H * TITLE_RATIO);
   const mapH = EXPORT_H - titleH;
 
@@ -736,7 +811,7 @@ export async function exportImage(
   // 右下角日期时间
   drawDateTime(ctx, EXPORT_W, EXPORT_H);
 
-  // 10. 下载
+  // 11. 下载
   await new Promise<void>((resolve, reject) => {
     finalCanvas.toBlob(
       (blob) => {
